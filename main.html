@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Tamper Sight - Main Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,100..900;1,100..900&amp;family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary-container": "#007255",
+                      "surface-base": "#000000",
+                      "success": "#10B981",
+                      "on-surface": "#dbe5de",
+                      "tertiary-fixed-dim": "#e2c62e",
+                      "tertiary": "#fffeff",
+                      "inverse-primary": "#006c50",
+                      "surface-container-highest": "#2d3732",
+                      "on-tertiary-container": "#746300",
+                      "on-tertiary-fixed": "#211b00",
+                      "on-error": "#690005",
+                      "on-tertiary-fixed-variant": "#534600",
+                      "danger": "#EF4444",
+                      "inverse-surface": "#dbe5de",
+                      "surface-elevated": "#0A0A0A",
+                      "primary-fixed": "#36ffc4",
+                      "surface": "#0c1511",
+                      "secondary": "#bdf4ff",
+                      "outline": "#83958c",
+                      "on-tertiary": "#393000",
+                      "on-error-container": "#ffdad6",
+                      "on-surface-variant": "#b9cbc1",
+                      "error-container": "#93000a",
+                      "tertiary-fixed": "#ffe253",
+                      "on-secondary": "#00363d",
+                      "secondary-fixed": "#9cf0ff",
+                      "border-strong": "#333333",
+                      "surface-container": "#18221d",
+                      "primary-fixed-dim": "#00e1ab",
+                      "outline-variant": "#3a4a43",
+                      "on-primary-fixed": "#002116",
+                      "primary-container": "#00ffc2",
+                      "inverse-on-surface": "#29322e",
+                      "on-secondary-fixed": "#001f24",
+                      "secondary-container": "#00e3fd",
+                      "warning": "#F59E0B",
+                      "tertiary-container": "#ffe149",
+                      "on-primary": "#003828",
+                      "on-secondary-fixed-variant": "#004f58",
+                      "surface-container-low": "#141d19",
+                      "surface-card": "#111111",
+                      "error": "#ffb4ab",
+                      "on-secondary-container": "#00616d",
+                      "background": "#0c1511",
+                      "on-primary-fixed-variant": "#00513c",
+                      "secondary-fixed-dim": "#00daf3",
+                      "surface-dim": "#0c1511",
+                      "surface-tint": "#00e1ab",
+                      "primary": "#fbfffa",
+                      "surface-bright": "#323b37",
+                      "surface-container-high": "#232c28",
+                      "surface-variant": "#2d3732",
+                      "on-background": "#dbe5de",
+                      "surface-container-lowest": "#07100c",
+                      "border-subtle": "#1F1F1F"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "margin-page": "40px",
+                      "gutter": "24px",
+                      "unit": "8px",
+                      "container-max": "1440px"
+              },
+              "fontFamily": {
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "display": [
+                              "Hanken Grotesk"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "headline-md": [
+                              "Hanken Grotesk"
+                      ],
+                      "headline-lg": [
+                              "Hanken Grotesk"
+                      ],
+                      "status-code": [
+                              "JetBrains Mono"
+                      ],
+                      "body-sm": [
+                              "Inter"
+                      ],
+                      "mono-label": [
+                              "JetBrains Mono"
+                      ]
+              },
+              "fontSize": {
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "status-code": [
+                              "11px",
+                              {
+                                      "lineHeight": "14px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-sm": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "mono-label": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "500"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .drag-active {
+            border-color: theme('colors.primary-container');
+            background-color: rgba(0, 255, 194, 0.05);
+        }
+        
+        .bento-card {
+            background-color: theme('colors.surface-card');
+            border: 1px solid theme('colors.border-subtle');
+            padding: theme('spacing.gutter');
+            border-radius: theme('borderRadius.DEFAULT');
+            transition: border-color 150ms ease-in-out;
+        }
+        .bento-card:hover {
+            border-color: rgba(0, 255, 194, 0.3);
+        }
+
+        .custom-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 4px;
+            height: 100%;
+            background: theme('colors.primary-container');
+            cursor: ew-resize;
+            box-shadow: 0 0 10px rgba(0, 255, 194, 0.5);
+        }
+
+        .custom-slider::-moz-range-thumb {
+            width: 4px;
+            height: 100%;
+            background: theme('colors.primary-container');
+            cursor: ew-resize;
+            border: none;
+            box-shadow: 0 0 10px rgba(0, 255, 194, 0.5);
+        }
+      </style>
+</head>
+<body class="bg-surface-base text-on-surface h-screen overflow-hidden flex flex-col font-body-md">
+<!-- Top Navigation -->
+<nav class="flex justify-between items-center px-margin-page w-full h-16 bg-surface border-b border-border-strong shrink-0">
+<div class="flex items-center gap-8">
+<span class="text-headline-md font-headline-md font-bold text-primary">Tamper Sight</span>
+<div class="hidden md:flex gap-6 h-full items-center">
+<a class="text-primary border-b-2 border-primary pb-1 font-mono-label text-mono-label opacity-80 h-full flex items-center mt-[2px]" href="#">Dashboard</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-150 font-mono-label text-mono-label h-full flex items-center" href="#">Forensics</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-150 font-mono-label text-mono-label h-full flex items-center" href="#">Archive</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-150 font-mono-label text-mono-label h-full flex items-center" href="#">Settings</a>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<div class="w-[6px] h-[6px] rounded-full bg-success"></div>
+<span class="font-mono-label text-mono-label text-success">Edge Engine Online</span>
+</div>
+<div class="flex gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</div>
+</nav>
+<!-- Main Content -->
+<main class="flex-1 p-gutter grid grid-cols-1 md:grid-cols-[1fr_1.5fr] gap-gutter overflow-hidden h-full">
+<!-- Left Column: Input -->
+<section class="flex flex-col gap-gutter h-full">
+<!-- Dropzone -->
+<div class="relative w-full aspect-video border-2 border-dashed border-border-strong rounded bg-surface-elevated flex flex-col items-center justify-center gap-4 transition-colors duration-200 cursor-pointer hover:border-outline" id="dropzone">
+<span class="material-symbols-outlined text-[48px] text-on-surface-variant">upload_file</span>
+<p class="font-body-md text-body-md text-on-surface-variant text-center px-4">Drag &amp; drop Passport/Aadhaar</p>
+<input accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" type="file"/>
+</div>
+<!-- Webcam Capture -->
+<div class="bento-card flex flex-col items-center justify-center p-6 gap-4">
+<span class="material-symbols-outlined text-3xl text-on-surface-variant">photo_camera</span>
+<p class="font-mono-label text-mono-label text-on-surface-variant text-center">LIVE VERIFICATION REQUIRED</p>
+<button class="px-6 py-2 border border-border-subtle rounded text-primary hover:border-primary-container hover:text-primary-container transition-colors duration-150 font-mono-label text-mono-label flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">camera</span>
+                     Capture Live Face
+                 </button>
+</div>
+<div class="flex-1"></div>
+<!-- Run Action -->
+<button class="w-full h-12 bg-primary-container text-surface-base font-headline-md text-headline-md flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-colors rounded">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+                RUN FORENSIC AUDIT
+            </button>
+</section>
+<!-- Right Column: Results (Bento Grid) -->
+<section class="flex flex-col gap-gutter h-full overflow-y-auto pr-2 pb-12 md:pb-0" style="scrollbar-width: thin; scrollbar-color: #333 #0A0A0A;">
+<!-- Verdict Banner -->
+<div class="bento-card flex justify-between items-center py-4">
+<div class="flex items-center gap-4">
+<div class="relative w-12 h-12">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 36 36">
+<circle class="stroke-surface-container" cx="18" cy="18" fill="none" r="16" stroke-width="4"></circle>
+<circle class="stroke-success" cx="18" cy="18" fill="none" r="16" stroke-dasharray="100 100" stroke-dashoffset="15" stroke-linecap="round" stroke-width="4"></circle>
+</svg>
+<div class="absolute inset-0 flex items-center justify-center font-mono-label text-mono-label text-success">85</div>
+</div>
+<div class="flex flex-col">
+<span class="font-mono-label text-mono-label text-on-surface-variant uppercase">Confidence Score</span>
+<span class="font-body-md text-body-md text-on-surface">Analysis Complete</span>
+</div>
+</div>
+<div class="px-4 py-1.5 bg-success/10 border border-success/30 rounded-full flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-success"></div>
+<span class="font-mono-label text-mono-label text-success font-bold tracking-wider">CLEARED</span>
+</div>
+</div>
+<!-- Extracted Data -->
+<div class="bento-card">
+<h3 class="font-mono-label text-mono-label text-on-surface-variant mb-6 border-b border-border-strong pb-2 uppercase tracking-widest">Extracted Entities</h3>
+<div class="grid grid-cols-2 gap-6">
+<div class="flex flex-col gap-1">
+<span class="font-status-code text-status-code text-on-surface-variant">ID NUMBER</span>
+<div class="flex items-center gap-3">
+<span class="font-body-lg text-body-lg font-mono">4829 1042 9931</span>
+<span class="px-2 py-0.5 bg-success/10 border border-success/20 rounded text-[10px] text-success font-mono">Verhoeff: Pass</span>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-status-code text-status-code text-on-surface-variant">NAME</span>
+<span class="font-body-lg text-body-lg font-mono uppercase">Arjun Sharma</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-status-code text-status-code text-on-surface-variant">DOB</span>
+<span class="font-body-lg text-body-lg font-mono">1992-08-14</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-status-code text-status-code text-on-surface-variant">MRZ CHECKSUM</span>
+<span class="font-body-lg text-body-lg font-mono text-primary-container">MATCH</span>
+</div>
+</div>
+</div>
+<!-- Visual Forensics (Before/After) -->
+<div class="bento-card flex-1 flex flex-col min-h-[300px]">
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-mono-label text-mono-label text-on-surface-variant uppercase tracking-widest">Visual Forensics</h3>
+<span class="font-status-code text-status-code text-on-surface-variant">Layer: ELA (Error Level Analysis)</span>
+</div>
+<div class="relative w-full flex-1 rounded bg-surface-elevated overflow-hidden border border-border-subtle group">
+<!-- Under Image (Forensic) -->
+<img class="absolute inset-0 w-full h-full object-cover" data-alt="A highly detailed, technical Error Level Analysis visualization of an ID card in dark mode. The image is mostly deep blacks and dark greys, with bright neon green and magenta noise artifacts highlighting potential digital tampering areas around a portrait photo. Professional cybersecurity UI aesthetic, high contrast." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCDaDH1lgygJN6ubVNiT2xpzxk4PlU_4zfF4Xn_E3OtzxdCISdv57RFd33f3XBetfo283XugOlImjJTFnuxCP0okTlgTsxE6Av1AIejve5-OIgLJzW8MHOFVxORkvJ7GJ6TF2VrvGedF1Eu08ho7GBYjOm2mxwHlVqkO7LNsU5kQ15KIPqEP7lDc1w_8_IOBA4AWJXIWUsqHULFmhUVoOpd7aAxeUSxc7BlqrUrFN3oIcYWygU49yEJ"/>
+<!-- Over Image (Original) -->
+<div class="absolute inset-0 w-full h-full overflow-hidden" id="slider-overlay" style="width: 50%;">
+<img class="absolute inset-0 w-[200%] max-w-none h-full object-cover" data-alt="A standard, crisp, professional headshot photo on a generic ID document template, rendered in a dark mode UI context. Subdued lighting, high resolution, realistic textures. The document background has subtle guilloche patterns." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAczLWIq5GF04NQSh264Emi-Z-hRK5M1G_mgabtuHb03vSBALa-BN6rHPbhsola_7USe7DdH9917MHiiBeZoxWo50XT5l4liiX3_qgxXIgDWWAKixEkV5b8GhG52MAQuTKuX05HkgnQ2VNehd7IpIgvdiT7uz-wRujg7muk1z8Y9flyVi_MkOvGUfR_OypVieXrbPnbiEjqhU6OPH36wA1_DPXvXi4hB7leklejKjfZd6SXjosx9lmd" style="width: 200%;"/>
+</div>
+<!-- Slider Handle -->
+<div class="absolute inset-y-0 left-[50%] w-0.5 bg-primary-container z-10 -ml-[1px]" id="slider-handle">
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-surface border border-primary-container rounded-full flex items-center justify-center cursor-ew-resize">
+<span class="material-symbols-outlined text-[14px] text-primary-container" style="font-variation-settings: 'FILL' 1;">sync_alt</span>
+</div>
+</div>
+<!-- Invisible Range Input for logic -->
+<input class="absolute inset-0 w-full h-full opacity-0 z-20 cursor-ew-resize custom-slider" id="image-slider" max="100" min="0" type="range" value="50"/>
+</div>
+</div>
+<!-- Action Bar -->
+<div class="flex justify-end pt-2 shrink-0">
+<button class="px-6 py-2 border border-border-strong bg-surface-elevated text-on-surface hover:text-primary hover:border-primary-container transition-colors duration-150 rounded font-mono-label text-mono-label flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">picture_as_pdf</span>
+                    Export PDF
+                </button>
+</div>
+</section>
+</main>
+<script>
+        // Drag and drop visual feedback
+        const dropzone = document.getElementById('dropzone');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => {
+                dropzone.classList.add('drag-active');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => {
+                dropzone.classList.remove('drag-active');
+            }, false);
+        });
+
+        // Image slider logic
+        const slider = document.getElementById('image-slider');
+        const overlay = document.getElementById('slider-overlay');
+        const handle = document.getElementById('slider-handle');
+
+        slider.addEventListener('input', (e) => {
+            const val = e.target.value;
+            overlay.style.width = `${val}%`;
+            handle.style.left = `${val}%`;
+        });
+    </script>
+</body></html>

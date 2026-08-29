@@ -1,0 +1,36 @@
+# === FastAPI Core ===
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
+python-multipart==0.0.20
+
+# === OCR & MRZ Extraction ===
+passporteye==2.1.0          # MRZ detection & parsing from passport images
+easyocr==1.7.2              # Deep-learning OCR (CRAFT + CRNN, no system deps)
+mrz==0.7.1                  # MRZ line parsing & checksum validation
+
+# === Computer Vision & Image Processing ===
+opencv-python-headless==4.11.0.86   # OpenCV without GUI (server-safe)
+numpy==2.2.6
+Pillow==11.2.1
+scikit-image==0.25.2        # ELA, SSIM, edge detection algorithms
+imutils==0.5.4              # Convenience wrappers for OpenCV
+
+# === Face Detection & Verification ===
+deepface==0.0.100            # Multi-backend face verification (ArcFace, VGG-Face)
+mediapipe==0.10.21          # Google MediaPipe face mesh & landmarks
+
+# === Image Metadata & EXIF Forensics ===
+exifread==3.0.0             # EXIF metadata extraction
+python-magic==0.4.27        # File type detection via magic bytes
+
+# === Document Validation (Aadhaar, PAN) ===
+stdnum==1.22                # Checksum validators (Verhoeff for Aadhaar, etc.)
+
+# === AI / ML Backbone ===
+torch==2.7.1                # PyTorch (CPU by default)
+torchvision==0.22.1         # Image transforms & pretrained models
+
+# === Utilities ===
+pydantic==2.11.3
+python-dotenv==1.1.0
+aiofiles==24.1.0
