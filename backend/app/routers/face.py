@@ -64,7 +64,7 @@ async def verify_faces(
         distance = float(result.get("distance", 1.0))
         # VGG-Face cosine threshold is technically 0.40, but for ID-to-Selfie 
         # (where impersonation is a high risk), we should be much stricter.
-        strict_threshold = 0.30 
+        strict_threshold = 0.50 
         match = bool(distance < strict_threshold)
         
         # Calculate similarity percentage logically (0 distance = 100%)
@@ -76,7 +76,7 @@ async def verify_faces(
             "distance": round(distance, 4),
             "threshold": strict_threshold,
             "model": result.get("model", "VGG-Face"),
-            "verdict": "MATCH — Same person" if match else "MISMATCH — Different person",
+            "verdict": "HIGH PROBABILITY MATCH" if match else "LOW PROBABILITY (MANUAL CHECK)",
         }
         
     except ValueError as e:

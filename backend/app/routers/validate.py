@@ -26,6 +26,7 @@ router = APIRouter()
 class ValidationRequest(BaseModel):
     aadhaar_number: str | None = None
     pan_number: str | None = None
+    dl_number: str | None = None
     passport_number: str | None = None
     mrz_line1: str | None = None
     mrz_line2: str | None = None
@@ -48,7 +49,7 @@ def _validate_aadhaar(number: str) -> ValidationResult:
         return ValidationResult(field="aadhaar", valid=False, reason=f"Expected 12 digits, got {len(cleaned)}")
     try:
         verhoeff.validate(cleaned)
-        return ValidationResult(field="aadhaar", valid=True, reason="Verhoeff checksum PASS")
+        return ValidationResult(field="aadhaar", valid=True, reason="Verhoeff CHECKSUM VALID")
     except Exception:
         return ValidationResult(field="aadhaar", valid=False, reason="Verhoeff checksum FAIL — possible tampering")
 
@@ -57,6 +58,15 @@ def _validate_pan(number: str) -> ValidationResult:
     """PAN format: ABCDE1234F — 4th char encodes holder type."""
     if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]$", number):
         return ValidationResult(field="pan", valid=False, reason="Invalid PAN format")
+    return ValidationResult(field="pan", valid=True, reason="PAN FORMAT VALID")
+
+
+def _validate_dl(number: str) -> ValidationResult:
+    """Validate Indian Driving Licence Format (State Code + RTO + Year + 7 digits)"""
+    cleaned = re.sub(r"[\-\s]", "", number)
+    if re.match(r"^[A-Z]{2}\d{13}$", cleaned):
+        return ValidationResult(field="dl", valid=True, reason="DL FORMAT VALID")
+    return ValidationResult(field="dl", valid=False, reason="Invalid DL Format")
 
     type_codes = {
         "A": "Association of Persons",
@@ -165,6 +175,9 @@ async def validate_document(req: ValidationRequest):
 
     if req.pan_number:
         results.append(_validate_pan(req.pan_number))
+
+    if req.dl_number:
+        results.append(_validate_dl(req.dl_number))
 
     if req.mrz_line1 or req.mrz_line2:
         results.append(_validate_passport_mrz(req.mrz_line1 or "", req.mrz_line2 or ""))

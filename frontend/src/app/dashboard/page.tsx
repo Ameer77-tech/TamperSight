@@ -4,6 +4,7 @@ import React, { useState, useRef, useCallback } from "react";
 import Webcam from "react-webcam";
 
 export default function DashboardPage() {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const bentoCardStyle = "bg-surface-card border border-border-subtle p-6 rounded-sm hover:border-primary-container/30 transition-colors duration-150";
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -59,15 +60,16 @@ export default function DashboardPage() {
     const payload = {
       aadhaar_number: fields["National ID Number"] || null,
       pan_number: fields["PAN Number"] || null,
+      dl_number: fields["Driving Licence"] || null,
       passport_number: fields["Passport Number"] || null,
       mrz_line1: mrz_raw && mrz_raw.includes("\n") ? mrz_raw.split("\n")[0] : null,
       mrz_line2: mrz_raw && mrz_raw.includes("\n") ? mrz_raw.split("\n")[1] : null,
-      date_of_birth: fields["Date of birth"] || null,
+      date_of_birth: fields["Date of birth"] || (fields["Dates Found"] ? fields["Dates Found"].split(",")[0].trim() : null) || null,
       date_of_expiry: fields["Date of expiry"] || null
     };
 
     try {
-      const valRes = await fetch("http://localhost:8000/api/validate/check", {
+      const valRes = await fetch(`${API_URL}/api/validate/check`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -111,13 +113,13 @@ export default function DashboardPage() {
       formData.append("doc_type", docType);
       
       // 1. Call the OCR Backend
-      const ocrPromise = fetch("http://localhost:8000/api/ocr/extract", {
+      const ocrPromise = fetch(`${API_URL}/api/ocr/extract`, {
         method: "POST",
         body: formData,
       });
 
       // 2. Call the Tampering (ELA) Backend simultaneously
-      const elaPromise = fetch("http://localhost:8000/api/tamper/ela", {
+      const elaPromise = fetch(`${API_URL}/api/tamper/ela`, {
         method: "POST",
         body: formData,
       }).then(async (res) => {
@@ -168,7 +170,7 @@ export default function DashboardPage() {
         faceFormData.append("document", selectedFile);
         faceFormData.append("selfie", dataURLtoFile(capturedSelfie, "selfie.jpg"));
         
-        fetch("http://localhost:8000/api/face/verify", {
+        fetch(`${API_URL}/api/face/verify`, {
           method: "POST",
           body: faceFormData
         })
@@ -323,46 +325,51 @@ export default function DashboardPage() {
           const rejectionReason = reasons.join(" + ");
 
           return (
-            <div className={`${bentoCardStyle} flex justify-between items-center py-4`}>
-              <div className="flex items-center gap-4">
-                <div className="relative w-12 h-12">
-                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                    <circle className="stroke-surface-container" cx="18" cy="18" fill="none" r="16" strokeWidth="4"></circle>
-                    <circle 
-                      className={isRejected ? "stroke-error" : "stroke-success"} 
-                      cx="18" cy="18" fill="none" r="16" 
-                      strokeDasharray={extractedData ? `${riskScore} 100` : "0 100"} 
-                      strokeDashoffset="0" strokeLinecap="round" strokeWidth="4"
-                    ></circle>
-                  </svg>
-                  <div className={`absolute inset-0 flex items-center justify-center text-xs ${isRejected ? "text-error" : "text-success"}`} style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-                    {extractedData ? `${riskScore}` : "--"}
+            <div className="flex flex-col gap-2">
+              <div className={`${bentoCardStyle} flex justify-between items-center py-4`}>
+                <div className="flex items-center gap-4">
+                  <div className="relative w-12 h-12">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                      <circle className="stroke-surface-container" cx="18" cy="18" fill="none" r="16" strokeWidth="4"></circle>
+                      <circle 
+                        className={isRejected ? "stroke-error" : "stroke-success"} 
+                        cx="18" cy="18" fill="none" r="16" 
+                        strokeDasharray={extractedData ? `${riskScore} 100` : "0 100"} 
+                        strokeDashoffset="0" strokeLinecap="round" strokeWidth="4"
+                      ></circle>
+                    </svg>
+                    <div className={`absolute inset-0 flex items-center justify-center text-xs ${isRejected ? "text-error" : "text-success"}`} style={{ fontFamily: '"JetBrains Mono", monospace' }}>
+                      {extractedData ? `${riskScore}` : "--"}
+                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-on-surface-variant uppercase tracking-widest" style={{ fontFamily: '"JetBrains Mono", monospace' }}>RISK SCORE</span>
+                    <span className="text-base text-on-surface" style={{ fontFamily: '"Inter", sans-serif' }}>
+                      {extractedData ? "Scan Complete" : "Awaiting Scan"}
+                    </span>
                   </div>
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-on-surface-variant uppercase tracking-widest" style={{ fontFamily: '"JetBrains Mono", monospace' }}>RISK SCORE</span>
-                  <span className="text-base text-on-surface" style={{ fontFamily: '"Inter", sans-serif' }}>
-                    {extractedData ? "Scan Complete" : "Awaiting Scan"}
-                  </span>
-                </div>
+                
+                {/* Dynamic Badge */}
+                {isRejected ? (
+                  <div className="px-4 py-1.5 bg-error/10 border-error/30 border rounded-full flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-error animate-pulse"></div>
+                    <span className="text-xs text-error font-bold tracking-wider" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
+                      HIGH RISK ({rejectionReason})
+                    </span>
+                  </div>
+                ) : (
+                  <div className={`px-4 py-1.5 ${extractedData ? 'bg-success/10 border-success/30' : 'bg-white/5 border-white/10'} border rounded-full flex items-center gap-2`}>
+                    <div className={`w-2 h-2 rounded-full ${extractedData ? 'bg-success animate-pulse' : 'bg-white/20'}`}></div>
+                    <span className={`text-xs ${extractedData ? 'text-success' : 'text-white/40'} font-bold tracking-wider`} style={{ fontFamily: '"JetBrains Mono", monospace' }}>
+                      {extractedData ? "LOW RISK" : "STANDBY"}
+                    </span>
+                  </div>
+                )}
               </div>
-              
-              {/* Dynamic Badge */}
-              {isRejected ? (
-                <div className="px-4 py-1.5 bg-error/10 border-error/30 border rounded-full flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-error animate-pulse"></div>
-                  <span className="text-xs text-error font-bold tracking-wider" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-                    REJECTED ({rejectionReason})
-                  </span>
-                </div>
-              ) : (
-                <div className={`px-4 py-1.5 ${extractedData ? 'bg-success/10 border-success/30' : 'bg-white/5 border-white/10'} border rounded-full flex items-center gap-2`}>
-                  <div className={`w-2 h-2 rounded-full ${extractedData ? 'bg-success animate-pulse' : 'bg-white/20'}`}></div>
-                  <span className={`text-xs ${extractedData ? 'text-success' : 'text-white/40'} font-bold tracking-wider`} style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-                    {extractedData ? "VERIFIED" : "STANDBY"}
-                  </span>
-                </div>
-              )}
+              <div className="text-[10px] text-on-surface-variant/60 tracking-wider text-right font-mono pr-2">
+                Preliminary automated screening — not a final authenticity determination.
+              </div>
             </div>
           );
         })()}
@@ -489,7 +496,7 @@ export default function DashboardPage() {
                </div>
                
                <div className={`mt-3 md:mt-0 px-4 py-2 rounded ${faceResult.match ? 'bg-success/20 text-success' : 'bg-error/20 text-error'} font-bold tracking-widest text-[11px] self-start md:self-auto`} style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-                 {faceResult.match ? 'OWNER VERIFIED' : 'MANUAL VERIFICATION REQUIRED'}
+                 {faceResult.match ? 'PLAUSIBLE MATCH' : 'MANUAL VERIFICATION REQUIRED'}
                </div>
              </div>
           </div>
@@ -521,7 +528,7 @@ export default function DashboardPage() {
               )}
             </div>
             <p className="text-xs text-on-surface-variant mb-4">
-              <strong className="text-on-surface">How to read this:</strong> A pure blue/black image means the document is completely authentic. Any <span className="text-error">bright red, yellow, or white spots</span> indicate pixels that were digitally altered, photoshopped, or pasted in.
+              <strong className="text-on-surface">How to read this:</strong> Brighter regions indicate higher differences after JPEG recompression. These inconsistencies may result from editing or image processing and should be evaluated alongside other verification signals.
             </p>
             
             <div className="w-full h-[250px] bg-[#050505] rounded overflow-hidden border border-border-strong group flex flex-col items-center justify-center relative p-2">

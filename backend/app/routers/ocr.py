@@ -191,9 +191,22 @@ async def extract_document(image: UploadFile = File(...), doc_type: str = Form("
         pan = re.search(r"\b([A-Z]{5}[0-9]{4}[A-Z])\b", full_text)
         if pan: fields["PAN Number"] = pan.group(1)
         
+        # Indian Driving Licence
+        dl = re.search(r"\b([A-Z]{2}[-\s]?\d{2}[-\s]?\d{4}[-\s]?\d{7})\b", full_text)
+        if dl: fields["Driving Licence"] = dl.group(1).replace(" ", "").replace("-", "")
+        
         # UAE / Generic sumsub ID
         uae_id = re.search(r"\b(\d{3}[\-\s]?\d{4}[\-\s]?\d{7}[\-\s]?[A-Z0-9])\b", full_text)
         if uae_id: fields["UAE ID Number"] = uae_id.group(1)
+
+        # Override Unknown ID if we successfully found a specific ID type
+        if fields.get("Document Type") == "Unknown ID":
+            if "PAN Number" in fields:
+                fields["Document Type"] = "PAN Card"
+            elif "National ID Number" in fields:
+                fields["Document Type"] = "Aadhaar Card"
+            elif "Driving Licence" in fields:
+                fields["Document Type"] = "Driving Licence"
 
     return {
         "mrz_raw": mrz_raw,
