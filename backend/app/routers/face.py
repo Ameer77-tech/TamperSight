@@ -18,6 +18,9 @@ import io
 import tempfile
 import os
 
+# Force DeepFace to download its massive 580MB AI weights into the G drive
+os.environ["DEEPFACE_HOME"] = "G:/"
+
 import cv2
 import numpy as np
 from deepface import DeepFace
@@ -52,26 +55,27 @@ async def verify_faces(
         result = DeepFace.verify(
             img1_path=doc_path,
             img2_path=selfie_path,
-            model_name="VGG-Face", # Fast and robust
+            model_name="VGG-Face",
             detector_backend="opencv",
-            enforce_detection=True
+            distance_metric="cosine", # Ensure distance is between 0 and 1
+            enforce_detection=False
         )
         
-        match = bool(result.get("verified", False))
         distance = float(result.get("distance", 1.0))
-        threshold = float(result.get("threshold", 0.4))
+        # VGG-Face cosine threshold is technically 0.40, but for ID-to-Selfie 
+        # (where impersonation is a high risk), we should be much stricter.
+        strict_threshold = 0.30 
+        match = bool(distance < strict_threshold)
         
-        # Calculate a pseudo similarity percentage based on distance and threshold
-        if match:
-            similarity = round(max(0, (1 - (distance / (threshold * 1.5))) * 100), 2)
-        else:
-            similarity = round(max(0, (1 - distance) * 100), 2)
+        # Calculate similarity percentage logically (0 distance = 100%)
+        similarity = round(max(0, (1 - distance) * 100), 2)
 
         return {
             "match": match,
             "similarity_percent": similarity,
             "distance": round(distance, 4),
-            "threshold": threshold,
+            "threshold": strict_threshold,
+            "model": result.get("model", "VGG-Face"),
             "verdict": "MATCH — Same person" if match else "MISMATCH — Different person",
         }
         

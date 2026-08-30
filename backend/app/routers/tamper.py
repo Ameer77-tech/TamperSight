@@ -141,7 +141,10 @@ async def copy_move_detection(image: UploadFile = File(...)):
 
     # Filter: matched to a different keypoint, spatially distant
     suspicious = []
-    for m, n in matches:
+    for match_pair in matches:
+        if len(match_pair) < 2:
+            continue
+        m, n = match_pair
         if m.queryIdx == m.trainIdx:
             continue
         pt1 = keypoints[m.queryIdx].pt

@@ -14,7 +14,7 @@ export function SystemPreview() {
           </div>
           
           <h3 className="text-2xl md:text-3xl font-medium text-white leading-snug">
-            "Watch how TamperSight identifies a highly sophisticated synthetic ID and forged MRZ in under 2 seconds."
+            &quot;Watch how TamperSight identifies a highly sophisticated synthetic ID and forged MRZ in under 2 seconds.&quot;
           </h3>
 
           <Button variant="link" className="p-0 h-auto text-white hover:text-[#30cfb9] font-semibold text-[15px] group/btn">

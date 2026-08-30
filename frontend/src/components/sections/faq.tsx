@@ -25,7 +25,7 @@ export function FAQ() {
             What types of documents does TamperSight support?
           </AccordionTrigger>
           <AccordionContent className="text-white/60 text-[15px] leading-relaxed pb-6">
-            TamperSight supports all standard MRZ-equipped passports, Aadhaar cards, PAN cards, and major regional driver's licenses. Our dual-engine OCR adapts dynamically to different layouts and typographies.
+            TamperSight supports all standard MRZ-equipped passports, Aadhaar cards, PAN cards, and major regional driver&apos;s licenses. Our dual-engine OCR adapts dynamically to different layouts and typographies.
           </AccordionContent>
         </AccordionItem>
 
