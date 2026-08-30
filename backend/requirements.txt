@@ -6,7 +6,7 @@ python-multipart==0.0.20
 # === OCR & MRZ Extraction ===
 passporteye==2.1.0          # MRZ detection & parsing from passport images
 easyocr==1.7.2              # Deep-learning OCR (CRAFT + CRNN, no system deps)
-mrz==0.7.1                  # MRZ line parsing & checksum validation
+mrz==0.6.2                  # MRZ line parsing & checksum validation
 
 # === Computer Vision & Image Processing ===
 opencv-python-headless==4.11.0.86   # OpenCV without GUI (server-safe)
