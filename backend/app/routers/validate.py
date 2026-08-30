@@ -102,8 +102,8 @@ def _validate_mrz_checkdigit(data: str, check: str) -> bool:
     return str(total % 10) == check
 
 
-def _validate_passport_mrz(line1: str, line2: str) -> ValidationResult:
-    """Validate MRZ line 2 check digits per ICAO 9303."""
+def _validate_passport_mrz(line1: str, line2: str, req: ValidationRequest) -> ValidationResult:
+    """Validate MRZ line 2 check digits per ICAO 9303 and cross-check OCR fields."""
     if not line2 or len(line2) < 44:
         return ValidationResult(field="mrz", valid=True, reason="MRZ checksums skipped (non-standard length)")
 
@@ -120,7 +120,48 @@ def _validate_passport_mrz(line1: str, line2: str) -> ValidationResult:
 
     if failures:
         return ValidationResult(field="mrz", valid=False, reason=f"Check-digit FAIL on: {', '.join(failures)}")
-    return ValidationResult(field="mrz", valid=True, reason="All ICAO 9303 check digits PASS")
+
+    # 2. Cross-check OCR fields with MRZ data
+    cross_failures = []
+    
+    if req.passport_number:
+        mrz_pass = line2[0:9].replace("<", "")
+        edited_pass = re.sub(r"[\-\s]", "", req.passport_number)
+        if mrz_pass != edited_pass:
+            cross_failures.append("Passport # Mismatch")
+            
+    def _parse_mrz_date(yymmdd: str) -> date | None:
+        try:
+            yr = int(yymmdd[0:2])
+            yr += 2000 if yr < 50 else 1900
+            return date(yr, int(yymmdd[2:4]), int(yymmdd[4:6]))
+        except:
+            return None
+
+    def _parse_ui_date(s: str) -> date | None:
+        for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(s, fmt).date()
+            except ValueError:
+                continue
+        return None
+
+    if req.date_of_birth:
+        ui_dob = _parse_ui_date(req.date_of_birth)
+        mrz_dob = _parse_mrz_date(line2[13:19])
+        if ui_dob and mrz_dob and ui_dob != mrz_dob:
+            cross_failures.append("DOB Mismatch")
+
+    if req.date_of_expiry:
+        ui_exp = _parse_ui_date(req.date_of_expiry)
+        mrz_exp = _parse_mrz_date(line2[21:27])
+        if ui_exp and mrz_exp and ui_exp != mrz_exp:
+            cross_failures.append("Expiry Mismatch")
+
+    if cross_failures:
+        return ValidationResult(field="mrz", valid=False, reason=f"Cross-check FAIL: {', '.join(cross_failures)}")
+
+    return ValidationResult(field="mrz", valid=True, reason="All ICAO 9303 digits & Cross-checks PASS")
 
 
 def _validate_dates(dob_str: str | None, expiry_str: str | None) -> list[ValidationResult]:
@@ -180,7 +221,7 @@ async def validate_document(req: ValidationRequest):
         results.append(_validate_dl(req.dl_number))
 
     if req.mrz_line1 or req.mrz_line2:
-        results.append(_validate_passport_mrz(req.mrz_line1 or "", req.mrz_line2 or ""))
+        results.append(_validate_passport_mrz(req.mrz_line1 or "", req.mrz_line2 or "", req))
 
     results.extend(_validate_dates(req.date_of_birth, req.date_of_expiry))
 

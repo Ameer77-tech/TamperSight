@@ -11,8 +11,8 @@ mrz==0.6.2                  # MRZ line parsing & checksum validation
 # === Computer Vision & Image Processing ===
 opencv-python-headless==4.11.0.86   # OpenCV without GUI (server-safe)
 numpy==1.26.4
-Pillow==11.2.1
-scikit-image==0.25.2        # ELA, SSIM, edge detection algorithms
+Pillow==10.2.0
+scikit-image==0.22.0        # ELA, SSIM, edge detection algorithms
 imutils==0.5.4              # Convenience wrappers for OpenCV
 
 # === Face Detection & Verification ===
@@ -27,8 +27,8 @@ python-magic==0.4.27        # File type detection via magic bytes
 stdnum==1.22                # Checksum validators (Verhoeff for Aadhaar, etc.)
 
 # === AI / ML Backbone ===
-torch==2.7.1                # PyTorch (CPU by default)
-torchvision==0.22.1         # Image transforms & pretrained models
+torch==2.2.2                # PyTorch (CPU by default)
+torchvision==0.17.2         # Image transforms & pretrained models
 
 # === Utilities ===
 pydantic==2.11.3
