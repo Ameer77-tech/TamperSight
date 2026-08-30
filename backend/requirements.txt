@@ -10,7 +10,7 @@ mrz==0.6.2                  # MRZ line parsing & checksum validation
 
 # === Computer Vision & Image Processing ===
 opencv-python-headless==4.11.0.86   # OpenCV without GUI (server-safe)
-numpy==2.2.6
+numpy==1.26.4
 Pillow==11.2.1
 scikit-image==0.25.2        # ELA, SSIM, edge detection algorithms
 imutils==0.5.4              # Convenience wrappers for OpenCV
