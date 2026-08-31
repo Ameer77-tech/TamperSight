@@ -1,4 +1,4 @@
-import { ScanFace, FileSearch, ShieldCheck, Fingerprint, Layers } from "lucide-react";
+import { ScanFace, FileSearch, ShieldCheck, Layers } from "lucide-react";
 
 export function Features() {
   return (

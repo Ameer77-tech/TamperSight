@@ -14,15 +14,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Link href="/dashboard" className="text-primary-main border-b-2 border-primary-main pb-1 text-xs tracking-widest font-medium uppercase opacity-90 h-full flex items-center mt-[2px]" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
               Dashboard
             </Link>
-            <Link href="#" className="text-on-surface-variant hover:text-primary-main transition-colors duration-150 text-xs tracking-widest font-medium uppercase h-full flex items-center" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-              Forensics
-            </Link>
-            <Link href="#" className="text-on-surface-variant hover:text-primary-main transition-colors duration-150 text-xs tracking-widest font-medium uppercase h-full flex items-center" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-              Archive
-            </Link>
-            <Link href="#" className="text-on-surface-variant hover:text-primary-main transition-colors duration-150 text-xs tracking-widest font-medium uppercase h-full flex items-center" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-              Settings
-            </Link>
           </div>
         </div>
 

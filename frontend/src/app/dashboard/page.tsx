@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, prefer-const, @typescript-eslint/no-unused-vars */
 "use client";
 
 import React, { useState, useRef, useCallback } from "react";
@@ -22,6 +23,9 @@ export default function DashboardPage() {
   const [capturedSelfie, setCapturedSelfie] = useState<string | null>(null);
   const [faceResult, setFaceResult] = useState<any>(null);
   const [docType, setDocType] = useState<string>("Auto");
+  const [watermarkResult, setWatermarkResult] = useState<any>(null);
+  const [redactionResult, setRedactionResult] = useState<any>(null);
+  const [metadataResult, setMetadataResult] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const webcamRef = useRef<Webcam>(null);
 
@@ -50,6 +54,9 @@ export default function DashboardPage() {
       setFaceResult(null);
       setElaImage(null);
       setElaError(null);
+      setWatermarkResult(null);
+      setRedactionResult(null);
+      setMetadataResult(null);
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -131,6 +138,39 @@ export default function DashboardPage() {
         }
       }).catch(err => console.error("ELA Error:", err));
 
+      // 2b. Call Watermark Detection (parallel, non-blocking)
+      const wmFormData = new FormData();
+      wmFormData.append("image", selectedFile);
+      fetch(`${API_URL}/api/tamper/detect-watermarks`, {
+        method: "POST",
+        body: wmFormData,
+      })
+        .then(res => res.json())
+        .then(data => setWatermarkResult(data))
+        .catch(err => console.error("Watermark Detection Error:", err));
+
+      // 2c. Call Redaction Detection (parallel, non-blocking)
+      const rdFormData = new FormData();
+      rdFormData.append("image", selectedFile);
+      fetch(`${API_URL}/api/tamper/detect-redactions`, {
+        method: "POST",
+        body: rdFormData,
+      })
+        .then(res => res.json())
+        .then(data => setRedactionResult(data))
+        .catch(err => console.error("Redaction Detection Error:", err));
+
+      // 2d. Call Metadata Analysis (detects editing software like MS Paint)
+      const mdFormData = new FormData();
+      mdFormData.append("image", selectedFile);
+      fetch(`${API_URL}/api/tamper/metadata`, {
+        method: "POST",
+        body: mdFormData,
+      })
+        .then(res => res.json())
+        .then(data => setMetadataResult(data))
+        .catch(err => console.error("Metadata Error:", err));
+
       const response = await ocrPromise;
 
       if (!response.ok) {
@@ -158,7 +198,7 @@ export default function DashboardPage() {
       // 4. Call Face Verification (if selfie captured)
       if (capturedSelfie && selectedFile) {
         const dataURLtoFile = (dataurl: string, filename: string) => {
-          var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)![1],
+          let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)![1],
               bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
           while(n--){
               u8arr[n] = bstr.charCodeAt(n);
@@ -302,68 +342,198 @@ export default function DashboardPage() {
         
         {/* Verdict Banner */}
         {(() => {
-          const elaTampered = elaError && parseFloat(elaError) > 3.5;
-          const validationFailed = validationData && validationData.checks?.some((c: any) => !c.valid);
-          const faceMismatch = faceResult && faceResult.match === false;
-          const isRejected = elaTampered || validationFailed || faceMismatch;
-          
-          // Risk Score: High is bad (100 is max risk), Low is good (0 is min risk)
           let riskScore = 0;
+          const evidence: { reason: string; points: number }[] = [];
+          let faceMismatchRule = false;
+
           if (extractedData) {
-            if (isRejected) {
-              riskScore = 75 + (faceMismatch ? 15 : 0) + (elaTampered ? 10 : 0);
-              riskScore = Math.min(riskScore, 100);
+            // ELA Tampering (tiered — ELA is weak against PNG saves, but too sensitive thresholds cause false positives)
+            if (elaError) {
+              const elaScore = parseFloat(elaError);
+              if (elaScore > 4.5) {
+                riskScore += 15;
+                evidence.push({ reason: "Strong tampering signal (ELA)", points: 15 });
+              } else if (elaScore > 3.0) {
+                riskScore += 10;
+                evidence.push({ reason: "Moderate ELA anomaly", points: 10 });
+              } else if (elaScore > 2.0) {
+                riskScore += 5;
+                evidence.push({ reason: "Mild ELA anomaly", points: 5 });
+              }
+            }
+
+            // Validation Checks
+            if (validationData && validationData.checks) {
+              validationData.checks.forEach((c: any) => {
+                if (!c.valid) {
+                  if (c.reason.toLowerCase().includes("expired")) {
+                    riskScore += 20;
+                    evidence.push({ reason: "Expired document", points: 20 });
+                  } else if (c.reason.includes("Cross-check FAIL")) {
+                    riskScore += 35;
+                    evidence.push({ reason: "MRZ/visible-field inconsistency", points: 35 });
+                  } else if (c.field === "aadhaar" && c.reason.includes("FAIL")) {
+                    riskScore += 45;
+                    evidence.push({ reason: "Aadhaar Verhoeff checksum FAIL", points: 45 });
+                  } else if (c.reason.includes("FAIL") || c.reason.includes("Invalid")) {
+                    riskScore += 35;
+                    evidence.push({ reason: `Checksum/format failure (${c.field})`, points: 35 });
+                  } else {
+                    riskScore += 10;
+                    evidence.push({ reason: "Minor document anomaly", points: 10 });
+                  }
+                }
+              });
+            }
+
+            // Face Verification
+            if (faceResult) {
+              if (faceResult.match === false) {
+                riskScore += 50;
+                evidence.push({ reason: "Face mismatch", points: 50 });
+                faceMismatchRule = true;
+              } else if (faceResult.similarity_percent && faceResult.similarity_percent < 70) {
+                riskScore += 15;
+                evidence.push({ reason: "Face verification borderline", points: 15 });
+              }
+            }
+
+            // Watermark / Sample / Demo detection
+            if (watermarkResult && watermarkResult.watermark_detected) {
+              riskScore += 30;
+              const texts = watermarkResult.findings.map((f: any) => f.matched_text).join(", ");
+              evidence.push({ reason: `Sample/demo marking: ${texts}`, points: 30 });
+            }
+
+            // Redaction / Overlay detection
+            if (redactionResult && redactionResult.redaction_detected) {
+              const highConf = redactionResult.findings.filter((f: any) => f.confidence >= 0.7);
+              const lowConf = redactionResult.findings.filter((f: any) => f.confidence < 0.7);
+              if (highConf.length > 0) {
+                riskScore += 20;
+                evidence.push({ reason: `Obvious redaction/overlay (${highConf.length} region${highConf.length > 1 ? 's' : ''})`, points: 20 });
+              }
+              if (lowConf.length > 0) {
+                const pts = Math.min(lowConf.length * 5, 10);
+                riskScore += pts;
+                evidence.push({ reason: `Uncertain visual anomaly (${lowConf.length} region${lowConf.length > 1 ? 's' : ''})`, points: pts });
+              }
+            }
+
+            // OCR confidence / missing fields
+            const expectedKeys = ["Name", "Dates Found", "Document Type"];
+            let missingField = false;
+            expectedKeys.forEach(k => {
+              if (!extractedData[k] || extractedData[k] === "Unknown ID") missingField = true;
+            });
+            if (missingField) {
+              riskScore += 5;
+              evidence.push({ reason: "OCR confidence issue", points: 5 });
+            }
+
+            // Metadata: editing software detected
+            if (metadataResult && metadataResult.suspicious) {
+              riskScore += 15;
+              const sw = metadataResult.flags?.[0] || "Editing software detected";
+              evidence.push({ reason: sw, points: 15 });
+            }
+
+            // Face mismatch floor: minimum Medium Risk
+            if (faceMismatchRule && riskScore < 40) {
+              riskScore = 40;
+            }
+
+            riskScore = Math.min(riskScore, 100);
+          }
+
+          let levelText = "STANDBY";
+          let badgeColor = "bg-white/5 border-white/10 text-white/40";
+          let dotColor = "bg-white/20";
+          let strokeColor = "stroke-success";
+          let scoreTextColor = "text-white/40";
+
+          if (extractedData) {
+            if (riskScore >= 70) {
+              levelText = "High Risk — Further Verification Required";
+              badgeColor = "bg-error/10 border-error/30 text-error";
+              dotColor = "bg-error animate-pulse";
+              strokeColor = "stroke-error";
+              scoreTextColor = "text-error";
+            } else if (riskScore >= 40) {
+              levelText = "Medium Risk — Review Recommended";
+              badgeColor = "bg-yellow-500/10 border-yellow-500/30 text-yellow-500";
+              dotColor = "bg-yellow-500 animate-pulse";
+              strokeColor = "stroke-yellow-500";
+              scoreTextColor = "text-yellow-500";
             } else {
-              riskScore = 15; // baseline small risk
+              levelText = "Low Risk";
+              badgeColor = "bg-success/10 border-success/30 text-success";
+              dotColor = "bg-success";
+              strokeColor = "stroke-success";
+              scoreTextColor = "text-success";
             }
           }
 
-          const reasons: string[] = [];
-          if (elaTampered) reasons.push("TAMPERED");
-          if (validationFailed) reasons.push("INVALID DATA");
-          if (faceMismatch) reasons.push("FACE MISMATCH");
-          const rejectionReason = reasons.join(" + ");
-
           return (
             <div className="flex flex-col gap-2">
-              <div className={`${bentoCardStyle} flex justify-between items-center py-4`}>
-                <div className="flex items-center gap-4">
-                  <div className="relative w-12 h-12">
-                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                      <circle className="stroke-surface-container" cx="18" cy="18" fill="none" r="16" strokeWidth="4"></circle>
-                      <circle 
-                        className={isRejected ? "stroke-error" : "stroke-success"} 
-                        cx="18" cy="18" fill="none" r="16" 
-                        strokeDasharray={extractedData ? `${riskScore} 100` : "0 100"} 
-                        strokeDashoffset="0" strokeLinecap="round" strokeWidth="4"
-                      ></circle>
-                    </svg>
-                    <div className={`absolute inset-0 flex items-center justify-center text-xs ${isRejected ? "text-error" : "text-success"}`} style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-                      {extractedData ? `${riskScore}` : "--"}
+              <div className={`${bentoCardStyle} flex flex-col gap-4 py-4`}>
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-4">
+                    <div className="relative w-12 h-12">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                        <circle className="stroke-surface-container" cx="18" cy="18" fill="none" r="16" strokeWidth="4"></circle>
+                        <circle 
+                          className={strokeColor} 
+                          cx="18" cy="18" fill="none" r="16" 
+                          strokeDasharray={extractedData ? `${riskScore} 100` : "0 100"} 
+                          strokeDashoffset="0" strokeLinecap="round" strokeWidth="4"
+                        ></circle>
+                      </svg>
+                      <div className={`absolute inset-0 flex items-center justify-center text-xs ${scoreTextColor}`} style={{ fontFamily: '"JetBrains Mono", monospace' }}>
+                        {extractedData ? `${riskScore}` : "--"}
+                      </div>
+                    </div>
+                    <div className="flex flex-col justify-center h-12">
+                      <span className="text-xs text-on-surface-variant uppercase tracking-widest leading-none mb-1" style={{ fontFamily: '"JetBrains Mono", monospace' }}>RISK SCORE</span>
+                      <span className="text-base text-on-surface leading-none" style={{ fontFamily: '"Inter", sans-serif' }}>
+                        {extractedData ? (riskScore >= 70 ? "HIGH RISK" : riskScore >= 40 ? "MEDIUM RISK" : "LOW RISK") + ` — ${riskScore}/100` : "Awaiting Scan"}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs text-on-surface-variant uppercase tracking-widest" style={{ fontFamily: '"JetBrains Mono", monospace' }}>RISK SCORE</span>
-                    <span className="text-base text-on-surface" style={{ fontFamily: '"Inter", sans-serif' }}>
-                      {extractedData ? "Scan Complete" : "Awaiting Scan"}
+                  
+                  {/* Dynamic Badge */}
+                  <div className={`px-4 py-1.5 ${badgeColor} border rounded-full flex items-center gap-2 max-w-[55%]`}>
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`}></div>
+                    <span className="text-xs font-bold tracking-wider truncate" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
+                      {levelText}
                     </span>
                   </div>
                 </div>
-                
-                {/* Dynamic Badge */}
-                {isRejected ? (
-                  <div className="px-4 py-1.5 bg-error/10 border-error/30 border rounded-full flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-error animate-pulse"></div>
-                    <span className="text-xs text-error font-bold tracking-wider" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-                      HIGH RISK ({rejectionReason})
-                    </span>
-                  </div>
-                ) : (
-                  <div className={`px-4 py-1.5 ${extractedData ? 'bg-success/10 border-success/30' : 'bg-white/5 border-white/10'} border rounded-full flex items-center gap-2`}>
-                    <div className={`w-2 h-2 rounded-full ${extractedData ? 'bg-success animate-pulse' : 'bg-white/20'}`}></div>
-                    <span className={`text-xs ${extractedData ? 'text-success' : 'text-white/40'} font-bold tracking-wider`} style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-                      {extractedData ? "LOW RISK" : "STANDBY"}
-                    </span>
+
+                {extractedData && (
+                  <div className="mt-2 border-t border-border-subtle pt-3">
+                    <span className="text-[11px] text-on-surface-variant mb-2 block font-mono uppercase tracking-widest">Detected evidence:</span>
+                    <ul className="text-sm font-mono text-on-surface/80 space-y-1">
+                      {evidence.length > 0 ? (
+                        <>
+                          {evidence.map((item, idx) => (
+                            <li key={idx} className="flex justify-between max-w-md">
+                              <span className="truncate pr-4">• {item.reason}</span>
+                              <span className="text-error flex-shrink-0">+{item.points}</span>
+                            </li>
+                          ))}
+                        </>
+                      ) : (
+                        <li className="flex justify-between max-w-md">
+                          <span className="text-success">• No anomalies detected</span>
+                          <span>+0</span>
+                        </li>
+                      )}
+                      <li className="flex justify-between max-w-md border-t border-border-subtle pt-1 mt-2 font-bold text-on-surface">
+                        <span>Total:</span>
+                        <span>{riskScore}/100</span>
+                      </li>
+                    </ul>
                   </div>
                 )}
               </div>
@@ -514,6 +684,74 @@ export default function DashboardPage() {
             </pre>
           </div>
         </details>
+
+        {/* Anomaly Detection Results (Watermark + Redaction) */}
+        {(watermarkResult || redactionResult) && (
+          <div className={`${bentoCardStyle} flex flex-col gap-4 animate-in fade-in duration-500`}>
+            <h3 className="text-xs text-on-surface-variant border-b border-border-strong pb-2 uppercase tracking-widest" style={{ fontFamily: '"JetBrains Mono", monospace' }}>Anomaly Detection</h3>
+            
+            {watermarkResult && watermarkResult.watermark_detected && (
+              <div className="bg-error/5 border border-error/30 rounded p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-error text-[20px]">report</span>
+                  <span className="text-sm font-mono text-error uppercase tracking-wider font-bold">Sample/Demo Marking Detected</span>
+                </div>
+                {watermarkResult.findings.map((f: any, i: number) => (
+                  <div key={i} className="text-xs font-mono text-on-surface/70 ml-7 mb-1">
+                    <span className="text-error">&quot;{f.matched_text}&quot;</span> — confidence: {(f.confidence * 100).toFixed(0)}%
+                  </div>
+                ))}
+              </div>
+            )}
+            {watermarkResult && !watermarkResult.watermark_detected && (
+              <div className="bg-surface-base border border-border-subtle rounded p-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-success text-[20px]">check_circle</span>
+                <span className="text-xs font-mono text-on-surface/70">No SAMPLE / SPECIMEN / DEMO / VOID markings detected.</span>
+              </div>
+            )}
+
+            {redactionResult && redactionResult.redaction_detected && (
+              <div className="bg-error/5 border border-error/30 rounded p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-error text-[20px]">visibility_off</span>
+                  <span className="text-sm font-mono text-error uppercase tracking-wider font-bold">Possible Redaction / Overlay</span>
+                </div>
+                {redactionResult.findings.map((f: any, i: number) => (
+                  <div key={i} className="text-xs font-mono text-on-surface/70 ml-7 mb-1 flex justify-between max-w-lg">
+                    <span>{f.type === 'possible_redaction' ? '▪ Redaction bar' : '▪ Overlay patch'} — {f.reason.split('—')[1]?.trim() || f.reason}</span>
+                    <span className="text-on-surface-variant ml-2 flex-shrink-0">{(f.confidence * 100).toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {redactionResult && !redactionResult.redaction_detected && (
+              <div className="bg-surface-base border border-border-subtle rounded p-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-success text-[20px]">check_circle</span>
+                <span className="text-xs font-mono text-on-surface/70">No obvious redactions or overlays detected.</span>
+              </div>
+            )}
+
+            {metadataResult && metadataResult.suspicious && (
+              <div className="bg-error/5 border border-error/30 rounded p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-error text-[20px]">data_alert</span>
+                  <span className="text-sm font-mono text-error uppercase tracking-wider font-bold">Metadata / EXIF Anomaly</span>
+                </div>
+                {metadataResult.flags.map((flag: string, i: number) => (
+                  <div key={i} className="text-xs font-mono text-on-surface/70 ml-7 mb-1 flex justify-between max-w-lg">
+                    <span>▪ {flag}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {metadataResult && !metadataResult.suspicious && (
+              <div className="bg-surface-base border border-border-subtle rounded p-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-success text-[20px]">check_circle</span>
+                <span className="text-xs font-mono text-on-surface/70">No suspicious software EXIF metadata detected.</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Dual Panels: ELA */}
         <div className="flex flex-col gap-6 flex-1">

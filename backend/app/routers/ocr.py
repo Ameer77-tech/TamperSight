@@ -68,6 +68,8 @@ def parse_mrz(mrz_lines: list) -> dict:
             
     elif l1.startswith("V"):
         data["Document Type"] = "Visa"
+        if len(l1) > 1 and l1[1] != "<":
+            data["Visa Type"] = l1[1]
         data["Visa Number"] = l2[0:9].replace("<", "")
         data["Nationality"] = l2[10:13].replace("<", "")
         dob_raw = l2[13:19]
@@ -76,6 +78,9 @@ def parse_mrz(mrz_lines: list) -> dict:
             prefix = "19" if y > 30 else "20"
             data["Date of birth"] = f"{dob_raw[4:6]}/{dob_raw[2:4]}/{prefix}{dob_raw[0:2]}"
         data["Gender"] = "Male" if l2[20] == "M" else "Female" if l2[20] == "F" else "Unknown"
+        entry_raw = l2[21:27]
+        if entry_raw.isdigit():
+            data["Entry Validation"] = f"{entry_raw[4:6]}/{entry_raw[2:4]}/20{entry_raw[0:2]}"
         names = l1[5:].split("<<")
         surname = names[0].replace("<", " ").strip()
         given = names[1].replace("<", " ").strip() if len(names) > 1 else ""
@@ -130,20 +135,21 @@ async def extract_document(image: UploadFile = File(...), doc_type: str = Form("
     mrz_raw = ""
     
     # Try PassportEye FIRST — it uses specialized MRZ zone detection
-    # EasyOCR cannot read the `<` chevron characters in MRZ, so we must
-    # use a dedicated MRZ reader that works directly on the raw image pixels.
     peye_res = _try_passporteye(contents)
     if peye_res:
-        mrz_raw = peye_res.get("raw_text", "")
-        mrz_dict = {
-            "Document Type": peye_res.get("type", "ID")[0] if peye_res.get("type") else "Passport",
-            "Name": f"{peye_res.get('names', '')} {peye_res.get('surname', '')}".strip().replace("<", " ").strip(),
-            "Passport Number": peye_res.get("number", ""),
-            "Nationality": peye_res.get("nationality", ""),
-            "Date of birth": peye_res.get("date_of_birth", ""),
-            "Date of expiry": peye_res.get("expiration_date", ""),
-            "Gender": {"M": "Male", "F": "Female"}.get(peye_res.get("sex", ""), peye_res.get("sex", ""))
-        }
+        raw_text = peye_res.get("raw_text", "")
+        # PassportEye sometimes concats lines with spaces, and sometimes reverses them.
+        lines = [line.strip() for line in raw_text.split() if len(line) > 20]
+        if len(lines) >= 2:
+            # Line 1 always contains the '<<' name separator. Line 2 has document numbers/DOB.
+            l1, l2 = lines[0], lines[1]
+            if "<<" in l2 and "<<" not in l1:
+                l1, l2 = l2, l1 # swap
+            elif not l1.startswith("P") and not l1.startswith("V") and (l2.startswith("P") or l2.startswith("V")):
+                l1, l2 = l2, l1 # swap based on document prefix
+            
+            mrz_raw = f"{l1}\n{l2}"
+            mrz_dict = parse_mrz([l1, l2])
     
     # Fallback: try regex on OCR text if PassportEye didn't find anything
     if not mrz_dict:
@@ -199,17 +205,54 @@ async def extract_document(image: UploadFile = File(...), doc_type: str = Form("
         uae_id = re.search(r"\b(\d{3}[\-\s]?\d{4}[\-\s]?\d{7}[\-\s]?[A-Z0-9])\b", full_text)
         if uae_id: fields["UAE ID Number"] = uae_id.group(1)
 
-        # Override Unknown ID if we successfully found a specific ID type
-        if fields.get("Document Type") == "Unknown ID":
-            if "PAN Number" in fields:
-                fields["Document Type"] = "PAN Card"
-            elif "National ID Number" in fields:
-                fields["Document Type"] = "Aadhaar Card"
-            elif "Driving Licence" in fields:
-                fields["Document Type"] = "Driving Licence"
+        # Visa: Duration of Stay
+        duration = re.search(r"Duration of[^\d]+(\d{2,3})\s*(Days)?", full_text, re.IGNORECASE)
+        if duration:
+            fields["Stay Duration"] = f"{duration.group(1)} Days"
+
+        # Always override with highly specific regex matches even if a generic dropdown was selected
+        if "PAN Number" in fields:
+            fields["Document Type"] = "PAN Card"
+        elif "National ID Number" in fields:
+            fields["Document Type"] = "Aadhaar Card"
+        elif "Driving Licence" in fields:
+            fields["Document Type"] = "Driving Licence"
+
+    if mrz_dict and fields:
+        for k, v in fields.items():
+            if k not in mrz_dict:
+                mrz_dict[k] = v
+
+    final_fields = mrz_dict if mrz_dict else fields
+    doc_t = final_fields.get("Document Type", "Unknown ID")
+
+    # Enforce standard schemas
+    schemas = {
+        "Passport": ["Name", "Passport Number", "Nationality", "Date of birth", "Date of expiry", "Gender"],
+        "Visa": ["Name", "Visa Number", "Nationality", "Date of birth", "Gender", "Visa Type", "Entry Validation", "Stay Duration"],
+        "Aadhaar Card": ["Name", "National ID Number", "Dates Found", "Gender"],
+        "PAN Card": ["Name", "PAN Number", "Dates Found"],
+        "Driving Licence": ["Name", "Driving Licence", "Dates Found", "Vehicle Class", "Blood Group"],
+    }
+    
+    # Generic National ID schema fallback
+    if doc_t == "National ID":
+        schemas["National ID"] = ["Name", "National ID Number", "Dates Found", "Gender", "Nationality"]
+        
+    expected_keys = schemas.get(doc_t, ["Name", "Document Number", "Dates Found"])
+    
+    # Apply schema
+    schema_fields = {"Document Type": doc_t}
+    
+    # Check if 'Name Candidates' exists but 'Name' doesn't, map it for the schema
+    if "Name Candidates" in final_fields and "Name" not in final_fields:
+        final_fields["Name"] = final_fields["Name Candidates"]
+        
+    for k in expected_keys:
+        schema_fields[k] = final_fields.get(k, "Not detected")
 
     return {
         "mrz_raw": mrz_raw,
         "ocr_text": full_text,
-        "extracted_fields": mrz_dict if mrz_dict else fields,
+        "extracted_fields": schema_fields,
     }
