@@ -29,7 +29,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Mean-Error"],
+    expose_headers=["X-Mean-Error", "X-ELA-Score"],
 )
 
 

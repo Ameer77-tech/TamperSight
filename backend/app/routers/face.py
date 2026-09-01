@@ -18,8 +18,9 @@ import io
 import tempfile
 import os
 
-# Force DeepFace to download its massive 580MB AI weights into the G drive
-os.environ["DEEPFACE_HOME"] = "G:/"
+# Force DeepFace to download AI weights into G: drive if available locally, fallback to standard home on cloud
+if os.path.exists("G:/"):
+    os.environ["DEEPFACE_HOME"] = "G:/"
 
 import cv2
 import numpy as np
@@ -62,13 +63,24 @@ async def verify_faces(
         )
         
         distance = float(result.get("distance", 1.0))
-        # VGG-Face cosine threshold is technically 0.40, but for ID-to-Selfie 
-        # (where impersonation is a high risk), we should be much stricter.
-        strict_threshold = 0.50 
+        # VGG-Face cosine threshold is technically 0.40 for identical high-res photos.
+        # For ID-to-Selfie (scans/lighting/age gaps), true matches often hit 0.55-0.65 distance.
+        # We set the threshold to 0.65 to prevent false rejections of actual document owners.
+        strict_threshold = 0.65 
         match = bool(distance < strict_threshold)
         
-        # Calculate similarity percentage logically (0 distance = 100%)
-        similarity = round(max(0, (1 - distance) * 100), 2)
+        # Calculate similarity using a quadratic scale for better human intuition.
+        # (e.g., A distance of 0.60 previously gave 40%, now gives 64% similarity).
+        similarity = round(max(0, (1 - (distance ** 2)) * 100), 2)
+        
+        if similarity >= 80:
+            verdict = "STRONG MATCH"
+        elif similarity >= 57.75:
+            verdict = "PROBABLE MATCH"
+        elif similarity >= 40:
+            verdict = "SLIGHT MATCH (MANUAL CHECK NEEDED)"
+        else:
+            verdict = "LOW PROBABILITY (MANUAL CHECK)"
 
         return {
             "match": match,
@@ -76,7 +88,7 @@ async def verify_faces(
             "distance": round(distance, 4),
             "threshold": strict_threshold,
             "model": result.get("model", "VGG-Face"),
-            "verdict": "HIGH PROBABILITY MATCH" if match else "LOW PROBABILITY (MANUAL CHECK)",
+            "verdict": verdict,
         }
         
     except ValueError as e:

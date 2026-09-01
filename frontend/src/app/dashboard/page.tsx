@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const [ocrCorrections, setOcrCorrections] = useState<any>({});
   const [elaImage, setElaImage] = useState<string | null>(null);
   const [elaError, setElaError] = useState<string | null>(null);
+  const [elaScore, setElaScore] = useState<number | null>(null);
   const [showWebcam, setShowWebcam] = useState(false);
   const [capturedSelfie, setCapturedSelfie] = useState<string | null>(null);
   const [faceResult, setFaceResult] = useState<any>(null);
@@ -54,6 +55,7 @@ export default function DashboardPage() {
       setFaceResult(null);
       setElaImage(null);
       setElaError(null);
+      setElaScore(null);
       setWatermarkResult(null);
       setRedactionResult(null);
       setMetadataResult(null);
@@ -132,7 +134,12 @@ export default function DashboardPage() {
       }).then(async (res) => {
         if (res.ok) {
           const meanErr = res.headers.get("X-Mean-Error") || "0";
+          const scoreHeader = res.headers.get("X-ELA-Score");
+          const rawVal = parseFloat(meanErr);
+          const computedScore = scoreHeader ? parseInt(scoreHeader, 10) : Math.min(100, Math.round((rawVal / 6.0) * 100));
+          
           setElaError(meanErr);
+          setElaScore(computedScore);
           const blob = await res.blob();
           setElaImage(URL.createObjectURL(blob));
         }
@@ -347,18 +354,17 @@ export default function DashboardPage() {
           let faceMismatchRule = false;
 
           if (extractedData) {
-            // ELA Tampering (tiered — ELA is weak against PNG saves, but too sensitive thresholds cause false positives)
-            if (elaError) {
-              const elaScore = parseFloat(elaError);
-              if (elaScore > 4.5) {
+            // ELA Tampering (calibrated 0-100 score)
+            if (elaScore !== null) {
+              if (elaScore >= 81) {
+                riskScore += 25;
+                evidence.push({ reason: "Very high ELA tampering signal (Digital forgery indicated)", points: 25 });
+              } else if (elaScore >= 61) {
                 riskScore += 15;
-                evidence.push({ reason: "Strong tampering signal (ELA)", points: 15 });
-              } else if (elaScore > 3.0) {
+                evidence.push({ reason: "High ELA anomaly (Compression discrepancy detected)", points: 15 });
+              } else if (elaScore >= 31) {
                 riskScore += 10;
-                evidence.push({ reason: "Moderate ELA anomaly", points: 10 });
-              } else if (elaScore > 2.0) {
-                riskScore += 5;
-                evidence.push({ reason: "Mild ELA anomaly", points: 5 });
+                evidence.push({ reason: "Moderate ELA anomaly (Pixels altered)", points: 10 });
               }
             }
 
@@ -368,19 +374,19 @@ export default function DashboardPage() {
                 if (!c.valid) {
                   if (c.reason.toLowerCase().includes("expired")) {
                     riskScore += 20;
-                    evidence.push({ reason: "Expired document", points: 20 });
+                    evidence.push({ reason: "Expired document (ID past validity date)", points: 20 });
                   } else if (c.reason.includes("Cross-check FAIL")) {
                     riskScore += 35;
-                    evidence.push({ reason: "MRZ/visible-field inconsistency", points: 35 });
+                    evidence.push({ reason: "MRZ/visible-field inconsistency (Text doesn't match ID code)", points: 35 });
                   } else if (c.field === "aadhaar" && c.reason.includes("FAIL")) {
                     riskScore += 45;
-                    evidence.push({ reason: "Aadhaar Verhoeff checksum FAIL", points: 45 });
+                    evidence.push({ reason: "Aadhaar Verhoeff checksum FAIL (ID number mathematically invalid)", points: 45 });
                   } else if (c.reason.includes("FAIL") || c.reason.includes("Invalid")) {
                     riskScore += 35;
-                    evidence.push({ reason: `Checksum/format failure (${c.field})`, points: 35 });
+                    evidence.push({ reason: `Checksum/format failure (${c.field} - invalid format)`, points: 35 });
                   } else {
                     riskScore += 10;
-                    evidence.push({ reason: "Minor document anomaly", points: 10 });
+                    evidence.push({ reason: "Minor document anomaly (Unusual structure)", points: 10 });
                   }
                 }
               });
@@ -390,11 +396,11 @@ export default function DashboardPage() {
             if (faceResult) {
               if (faceResult.match === false) {
                 riskScore += 50;
-                evidence.push({ reason: "Face mismatch", points: 50 });
+                evidence.push({ reason: "Face mismatch (Live selfie does not match ID photo)", points: 50 });
                 faceMismatchRule = true;
               } else if (faceResult.similarity_percent && faceResult.similarity_percent < 70) {
                 riskScore += 15;
-                evidence.push({ reason: "Face verification borderline", points: 15 });
+                evidence.push({ reason: "Face verification borderline (Match is uncertain)", points: 15 });
               }
             }
 
@@ -402,7 +408,7 @@ export default function DashboardPage() {
             if (watermarkResult && watermarkResult.watermark_detected) {
               riskScore += 30;
               const texts = watermarkResult.findings.map((f: any) => f.matched_text).join(", ");
-              evidence.push({ reason: `Sample/demo marking: ${texts}`, points: 30 });
+              evidence.push({ reason: `Sample/demo marking: ${texts} (Not a real ID)`, points: 30 });
             }
 
             // Redaction / Overlay detection
@@ -411,12 +417,12 @@ export default function DashboardPage() {
               const lowConf = redactionResult.findings.filter((f: any) => f.confidence < 0.7);
               if (highConf.length > 0) {
                 riskScore += 20;
-                evidence.push({ reason: `Obvious redaction/overlay (${highConf.length} region${highConf.length > 1 ? 's' : ''})`, points: 20 });
+                evidence.push({ reason: `Obvious redaction/overlay (${highConf.length} region${highConf.length > 1 ? 's' : ''} covered up)`, points: 20 });
               }
               if (lowConf.length > 0) {
                 const pts = Math.min(lowConf.length * 5, 10);
                 riskScore += pts;
-                evidence.push({ reason: `Uncertain visual anomaly (${lowConf.length} region${lowConf.length > 1 ? 's' : ''})`, points: pts });
+                evidence.push({ reason: `Uncertain visual anomaly (${lowConf.length} region${lowConf.length > 1 ? 's' : ''} possibly edited)`, points: pts });
               }
             }
 
@@ -428,14 +434,14 @@ export default function DashboardPage() {
             });
             if (missingField) {
               riskScore += 5;
-              evidence.push({ reason: "OCR confidence issue", points: 5 });
+              evidence.push({ reason: "OCR confidence issue (Missing or blurry required fields)", points: 5 });
             }
 
             // Metadata: editing software detected
             if (metadataResult && metadataResult.suspicious) {
               riskScore += 15;
               const sw = metadataResult.flags?.[0] || "Editing software detected";
-              evidence.push({ reason: sw, points: 15 });
+              evidence.push({ reason: `${sw} (Image was manipulated)`, points: 15 });
             }
 
             // Face mismatch floor: minimum Medium Risk
@@ -449,16 +455,16 @@ export default function DashboardPage() {
           let levelText = "STANDBY";
           let badgeColor = "bg-white/5 border-white/10 text-white/40";
           let dotColor = "bg-white/20";
-          let strokeColor = "stroke-success";
+          let strokeColor = "stroke-green-500";
           let scoreTextColor = "text-white/40";
 
           if (extractedData) {
             if (riskScore >= 70) {
               levelText = "High Risk — Further Verification Required";
-              badgeColor = "bg-error/10 border-error/30 text-error";
-              dotColor = "bg-error animate-pulse";
-              strokeColor = "stroke-error";
-              scoreTextColor = "text-error";
+              badgeColor = "bg-red-500/10 border-red-500/30 text-red-500";
+              dotColor = "bg-red-500 animate-pulse";
+              strokeColor = "stroke-red-500";
+              scoreTextColor = "text-red-500";
             } else if (riskScore >= 40) {
               levelText = "Medium Risk — Review Recommended";
               badgeColor = "bg-yellow-500/10 border-yellow-500/30 text-yellow-500";
@@ -467,10 +473,10 @@ export default function DashboardPage() {
               scoreTextColor = "text-yellow-500";
             } else {
               levelText = "Low Risk";
-              badgeColor = "bg-success/10 border-success/30 text-success";
-              dotColor = "bg-success";
-              strokeColor = "stroke-success";
-              scoreTextColor = "text-success";
+              badgeColor = "bg-green-500/10 border-green-500/30 text-green-500";
+              dotColor = "bg-green-500";
+              strokeColor = "stroke-green-500";
+              scoreTextColor = "text-green-500";
             }
           }
 
@@ -567,21 +573,21 @@ export default function DashboardPage() {
           
           <div className="grid grid-cols-2 gap-4">
             {extractedData && Object.entries(extractedData).map(([key, val]) => (
-              <div key={key} className="flex flex-col gap-1">
-                <span className="text-[11px] text-on-surface-variant tracking-widest uppercase" style={{ fontFamily: '"JetBrains Mono", monospace' }}>{key.replace(/_/g, " ")}</span>
+              <div key={key} className="flex flex-col gap-1 min-w-0">
+                <span className="text-[11px] text-on-surface-variant tracking-widest uppercase truncate" style={{ fontFamily: '"JetBrains Mono", monospace' }}>{key.replace(/_/g, " ")}</span>
                 {isEditingOCR && key !== 'Document Type' && key !== 'Name Candidates' ? (
                   <input
                     value={editedFields[key] !== undefined ? editedFields[key] : (val || '')}
                     onChange={(e) => setEditedFields({...editedFields, [key]: e.target.value})}
-                    className="bg-surface-base border border-primary-main/50 text-sm text-on-surface p-1.5 rounded font-mono focus:outline-none focus:border-primary-main"
+                    className="bg-surface-base border border-primary-main/50 text-sm text-on-surface p-1.5 rounded font-mono focus:outline-none focus:border-primary-main w-full"
                   />
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-mono text-on-surface tracking-wider uppercase truncate pr-2">
+                  <div className="flex items-start gap-2 min-w-0 w-full">
+                    <span className="text-sm font-mono text-on-surface tracking-wider uppercase break-words whitespace-normal min-w-0 flex-1 pr-2">
                       {val as string || "----"}
                     </span>
                     {ocrCorrections[key] && !isEditingOCR && (
-                      <span className="text-primary-main material-symbols-outlined text-[14px]" title="Manually corrected">edit_note</span>
+                      <span className="text-primary-main material-symbols-outlined text-[14px] shrink-0" title="Manually corrected">edit_note</span>
                     )}
                   </div>
                 )}
@@ -756,17 +762,59 @@ export default function DashboardPage() {
         {/* Dual Panels: ELA */}
         <div className="flex flex-col gap-6 flex-1">
           {/* ELA Heatmap */}
-          <div className={`${bentoCardStyle} flex-1 flex flex-col`}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xs text-on-surface-variant uppercase tracking-widest" style={{ fontFamily: '"JetBrains Mono", monospace' }}>Tampering (ELA Heatmap)</h3>
-              {elaError && (
-                <span className={`text-[11px] font-bold ${parseFloat(elaError) > 3.5 ? 'text-error' : 'text-success'}`} style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-                  Score: {elaError}
-                </span>
-              )}
+          <div className={`${bentoCardStyle} flex-1 flex flex-col gap-3`}>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-border-strong pb-3 gap-3">
+              <div>
+                <h3 className="text-xs text-on-surface-variant uppercase tracking-widest" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
+                  ELA TAMPERING RISK SCORE
+                </h3>
+                {elaScore !== null ? (
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-xl md:text-2xl font-bold text-on-surface" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
+                      {elaScore} / 100 <span className="text-xs font-normal text-on-surface-variant font-mono">Tampering Risk</span>
+                    </span>
+                    {elaError && (
+                      <span className="text-[10px] text-on-surface-variant font-mono">
+                        (Raw metric: {elaError})
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-sm text-on-surface-variant mt-1 block" style={{ fontFamily: '"JetBrains Mono", monospace' }}>Tampering Risk: -- / 100</span>
+                )}
+              </div>
+
+              {elaScore !== null && (() => {
+                let categoryText = "LOW RISK — CLEAN DOCUMENT";
+                let categoryColor = "bg-green-500/10 border-green-500/30 text-green-500";
+                if (elaScore >= 81) {
+                  categoryText = "VERY HIGH RISK — DIGITAL FORGERY";
+                  categoryColor = "bg-red-500/20 border-red-500/40 text-red-500";
+                } else if (elaScore >= 61) {
+                  categoryText = "HIGH RISK — TAMPERING LIKELY";
+                  categoryColor = "bg-red-500/10 border-red-500/30 text-red-500";
+                } else if (elaScore >= 31) {
+                  categoryText = "MODERATE RISK — REVIEW RECOMMENDED";
+                  categoryColor = "bg-yellow-500/10 border-yellow-500/30 text-yellow-500";
+                }
+                return (
+                  <div className={`px-3 py-1.5 rounded border text-[11px] font-bold tracking-wider ${categoryColor}`} style={{ fontFamily: '"JetBrains Mono", monospace' }}>
+                    {categoryText}
+                  </div>
+                );
+              })()}
             </div>
-            <p className="text-xs text-on-surface-variant mb-4">
-              <strong className="text-on-surface">How to read this:</strong> Brighter regions indicate higher differences after JPEG recompression. These inconsistencies may result from editing or image processing and should be evaluated alongside other verification signals.
+
+            {/* Score scale guide */}
+            <div className="flex items-center gap-2 text-[11px] text-on-surface-variant/80 font-mono bg-surface-base px-3 py-1.5 rounded border border-border-subtle">
+              <span className="material-symbols-outlined text-[16px] text-primary-main">info</span>
+              <span>
+                <strong>Scale Guide:</strong> 0–30 = Low Risk (Clean/Authentic) | 31–60 = Moderate Risk | 61–100 = High Risk (Tampered)
+              </span>
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              Lower scores (e.g. 0–30) indicate clean pixel compression with low tampering risk. Higher scores indicate JPEG compression discrepancies.
             </p>
             
             <div className="w-full h-[250px] bg-[#050505] rounded overflow-hidden border border-border-strong group flex flex-col items-center justify-center relative p-2">

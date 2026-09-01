@@ -29,11 +29,11 @@ router = APIRouter()
 
 # ── 1. Error Level Analysis (ELA) ────────────────────────────────────
 
-def _compute_ela(image_bytes: bytes, quality: int = 90, scale: int = 15) -> tuple[np.ndarray, float]:
+def _compute_ela(image_bytes: bytes, quality: int = 90, scale: int = 15) -> tuple[np.ndarray, float, int]:
     """
     True ELA: re-save at `quality`, subtract from original,
     amplify differences by `scale`.
-    Returns (ela_image_bgr, mean_error).
+    Returns (ela_image_bgr, mean_error, ela_score).
     """
     # Decode original
     nparr = np.frombuffer(image_bytes, np.uint8)
@@ -50,31 +50,33 @@ def _compute_ela(image_bytes: bytes, quality: int = 90, scale: int = 15) -> tupl
     ela = np.clip(diff * scale, 0, 255).astype(np.uint8)
 
     mean_error = float(np.mean(diff))
-    return ela, mean_error
+    # Calibrate raw mean_error (~0.0 - 6.0+) into normalized ELA score (0 - 100)
+    ela_score = min(100, max(0, int(round((mean_error / 6.0) * 100))))
+    return ela, mean_error, ela_score
 
 
 @router.post("/ela")
 async def error_level_analysis(image: UploadFile = File(...), quality: int = 90, scale: int = 15):
     """
-    Returns the ELA heatmap as a PNG image.
+    Returns the ELA heatmap as a PNG image along with normalized score and raw metric headers.
     Bright spots indicate regions saved at different compression levels —
     a strong signal of digital tampering.
     """
     contents = await image.read()
     try:
-        ela_img, mean_err = _compute_ela(contents, quality, scale)
+        ela_img, mean_err, ela_score = _compute_ela(contents, quality, scale)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
-    # Apply a colormap for visual clarity
-    ela_gray = cv2.cvtColor(ela_img, cv2.COLOR_BGR2GRAY)
-    ela_colored = cv2.applyColorMap(ela_gray, cv2.COLORMAP_JET)
-
-    _, png = cv2.imencode(".png", ela_colored)
+    # Return the raw scaled ELA image (which has natural color artifacts)
+    _, png = cv2.imencode(".png", ela_img)
     return StreamingResponse(
         io.BytesIO(png.tobytes()),
         media_type="image/png",
-        headers={"X-Mean-Error": f"{mean_err:.4f}"},
+        headers={
+            "X-Mean-Error": f"{mean_err:.4f}",
+            "X-ELA-Score": str(ela_score),
+        },
     )
 
 

@@ -30,6 +30,7 @@ def _get_reader():
 def _try_passporteye(image_bytes: bytes) -> dict | None:
     tmp_path = None
     try:
+        # pyrefly: ignore [missing-import]
         from passporteye import read_mrz
         with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
             tmp.write(image_bytes)
@@ -197,9 +198,12 @@ async def extract_document(image: UploadFile = File(...), doc_type: str = Form("
         pan = re.search(r"\b([A-Z]{5}[0-9]{4}[A-Z])\b", full_text)
         if pan: fields["PAN Number"] = pan.group(1)
         
-        # Indian Driving Licence
-        dl = re.search(r"\b([A-Z]{2}[-\s]?\d{2}[-\s]?\d{4}[-\s]?\d{7})\b", full_text)
-        if dl: fields["Driving Licence"] = dl.group(1).replace(" ", "").replace("-", "")
+        # Indian Driving Licence (supports standard 15-char Sarathi, 16-char extended, slashes, hyphens, and prefixes)
+        dl_match = re.search(r"(?:DL|LICENCE|LICENSE)?[:\s#\-]*\b([A-Z0-9]{2}[-\s\/\.]*(?:\d[-\s\/\.]*){11,15})\b", full_text, re.IGNORECASE)
+        if not dl_match:
+            dl_match = re.search(r"\b([A-Z]{2}[-\s\/\.]?[A-Z0-9]{9,15})\b", full_text)
+        if dl_match:
+            fields["Driving Licence"] = re.sub(r"[\-\s\/\.\:]", "", dl_match.group(1)).upper()
         
         # UAE / Generic sumsub ID
         uae_id = re.search(r"\b(\d{3}[\-\s]?\d{4}[\-\s]?\d{7}[\-\s]?[A-Z0-9])\b", full_text)

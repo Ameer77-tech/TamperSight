@@ -58,16 +58,7 @@ def _validate_pan(number: str) -> ValidationResult:
     """PAN format: ABCDE1234F — 4th char encodes holder type."""
     if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]$", number):
         return ValidationResult(field="pan", valid=False, reason="Invalid PAN format")
-    return ValidationResult(field="pan", valid=True, reason="PAN FORMAT VALID")
-
-
-def _validate_dl(number: str) -> ValidationResult:
-    """Validate Indian Driving Licence Format (State Code + RTO + Year + 7 digits)"""
-    cleaned = re.sub(r"[\-\s]", "", number)
-    if re.match(r"^[A-Z]{2}\d{13}$", cleaned):
-        return ValidationResult(field="dl", valid=True, reason="DL FORMAT VALID")
-    return ValidationResult(field="dl", valid=False, reason="Invalid DL Format")
-
+    
     type_codes = {
         "A": "Association of Persons",
         "B": "Body of Individuals",
@@ -80,9 +71,90 @@ def _validate_dl(number: str) -> ValidationResult:
         "P": "Individual (Person)",
         "T": "Trust",
     }
-    fourth = number[3]
+    fourth = number[3].upper()
     holder_type = type_codes.get(fourth, "Unknown")
     return ValidationResult(field="pan", valid=True, reason=f"Valid PAN — Holder type: {holder_type}")
+
+
+# Indian State / Union Territory 2-letter codes
+INDIAN_STATE_CODES = {
+    "AN", "AP", "AR", "AS", "BR", "CG", "CH", "DD", "DN", "DL", "GA", "GJ", 
+    "HR", "HP", "JK", "JH", "KA", "KL", "LA", "LD", "MP", "MH", "MN", "ML", 
+    "MZ", "NL", "OD", "OR", "PB", "PY", "RJ", "SK", "TN", "TS", "TR", "UP", 
+    "UK", "UT", "WB"
+}
+
+
+def _validate_dl(number: str) -> ValidationResult:
+    """
+    Validate Indian Driving Licence Format.
+    Supports national Sarathi (15/16 chars), state-specific, and legacy structures.
+    Tolerant of spaces, hyphens, slashes, and common OCR character confusions (O/0, I/1).
+    No unneeded checksum enforcement.
+    """
+    if not number or not number.strip():
+        return ValidationResult(field="dl", valid=False, reason="Empty DL Number")
+
+    # 1. Clean formatting characters (spaces, hyphens, slashes, dots, colons)
+    cleaned = re.sub(r"[\-\s\/\.\:\,]", "", number).strip().upper()
+    
+    if len(cleaned) < 8 or len(cleaned) > 20:
+        return ValidationResult(
+            field="dl", 
+            valid=False, 
+            reason=f"Invalid DL length ({len(cleaned)} chars) — Expected 11-16 characters"
+        )
+
+    # 2. OCR Error Correction for State Code (first 2 chars)
+    prefix = list(cleaned[:2])
+    if prefix[0] == '0':
+        prefix[0] = 'O'
+    if len(prefix) > 1 and prefix[1] == '0' and prefix[0] in ('O', 'C', 'M'):
+        prefix[1] = 'D' if prefix[0] == 'O' else 'G'  # OD, CG
+    if prefix[0] == '1':
+        prefix[0] = 'I'
+    if len(prefix) > 1 and prefix[0] == 'D' and prefix[1] == '1':
+        prefix[1] = 'L'  # DL (Delhi)
+        
+    state_code = "".join(prefix)
+    suffix = cleaned[2:]
+
+    # Normalize common OCR confusions in numeric part (suffix): O->0, I->1, L->1, Z->2, S->5, B->8
+    ocr_num_map = str.maketrans({"O": "0", "I": "1", "L": "1", "Z": "2", "S": "5", "B": "8"})
+    corrected_suffix = suffix.translate(ocr_num_map)
+    normalized_dl = state_code + corrected_suffix
+
+    # 3. Check against recognized Indian State Codes & Formats
+    is_valid_state = state_code in INDIAN_STATE_CODES or bool(re.match(r"^[A-Z]{2}$", state_code))
+
+    # Format 1: Standard National Smart Card / Sarathi Format (State + 11 to 14 digits)
+    # e.g., AP40520260001067 (16 chars), DL1420110012345 (15 chars), TN0120150001234 (15 chars)
+    if re.match(r"^[A-Z]{2}\d{11,14}$", normalized_dl):
+        reason = f"Valid Indian DL — {'Standard Sarathi Format' if len(normalized_dl) == 15 else 'Extended RTO Format'} ({state_code})"
+        return ValidationResult(field="dl", valid=True, reason=reason)
+
+    # Format 2: Legacy / State-Specific Formats with alphanumeric segments or 9-15 digits
+    # e.g., MH0220100012345, WB011999001234, KA01E20120001234
+    if re.match(r"^[A-Z]{2}[A-Z0-9]{9,15}$", normalized_dl) and bool(re.search(r"\d{4,}", corrected_suffix)):
+        return ValidationResult(
+            field="dl", 
+            valid=True, 
+            reason=f"Valid Indian DL — State/Legacy Format ({state_code})"
+        )
+
+    # Format 3: General Plausible Match for non-standard or older regional licences
+    if is_valid_state and 10 <= len(normalized_dl) <= 17:
+        return ValidationResult(
+            field="dl",
+            valid=True,
+            reason=f"Plausible Indian DL Format ({state_code})"
+        )
+
+    return ValidationResult(
+        field="dl",
+        valid=False,
+        reason=f"Invalid DL Format ({number}) — Does not match any Indian DL structure"
+    )
 
 
 def _validate_mrz_checkdigit(data: str, check: str) -> bool:
