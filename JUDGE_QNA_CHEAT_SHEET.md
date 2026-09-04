@@ -38,7 +38,7 @@ Instead of just looking at the document, TamperSight acts like a digital detecti
 Judges love it when you acknowledge your limitations. It proves you understand real-world engineering.
 1. **No Liveness Detection (Yet):** Currently, our webcam check just looks at a face. A fraudster could hold up a printed photo of the victim to the webcam to bypass it. **Fix:** We plan to add 3D passive liveness detection in the future.
 2. **Physical Forgeries:** We analyze *digital* scans. If someone physically prints a fake card perfectly and takes a photo of it, ELA (which detects digital photoshop artifacts) might not catch it (though the Math or Face checks probably still will).
-3. **No Central Database Access:** We don't have access to the Indian Government's UIDAI servers to verify if an Aadhaar number actually belongs to a specific person. We can only verify if the number is *mathematically valid*.
+3. **No Central Database Access:** We don't have access to the Indian Government's UIDAI servers to verify if an Aadhaar number actually belongs to a specific person. We can only verify if the number is *mathematically valid*.5
 
 ---
 

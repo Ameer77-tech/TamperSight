@@ -368,6 +368,8 @@ export default function DashboardPage() {
               }
             }
 
+            let highRiskFloorRule = false;
+
             // Validation Checks
             if (validationData && validationData.checks) {
               validationData.checks.forEach((c: any) => {
@@ -376,14 +378,17 @@ export default function DashboardPage() {
                     riskScore += 20;
                     evidence.push({ reason: "Expired document (ID past validity date)", points: 20 });
                   } else if (c.reason.includes("Cross-check FAIL")) {
-                    riskScore += 35;
-                    evidence.push({ reason: "MRZ/visible-field inconsistency (Text doesn't match ID code)", points: 35 });
+                    riskScore += 75;
+                    evidence.push({ reason: "MRZ/visible-field inconsistency (Text doesn't match ID code)", points: 75 });
+                    highRiskFloorRule = true;
                   } else if (c.field === "aadhaar" && c.reason.includes("FAIL")) {
-                    riskScore += 45;
-                    evidence.push({ reason: "Aadhaar Verhoeff checksum FAIL (ID number mathematically invalid)", points: 45 });
+                    riskScore += 75;
+                    evidence.push({ reason: "Aadhaar Verhoeff checksum FAIL (ID number mathematically invalid)", points: 75 });
+                    highRiskFloorRule = true;
                   } else if (c.reason.includes("FAIL") || c.reason.includes("Invalid")) {
-                    riskScore += 35;
-                    evidence.push({ reason: `Checksum/format failure (${c.field} - invalid format)`, points: 35 });
+                    riskScore += 75;
+                    evidence.push({ reason: `Checksum/format failure (${c.field} - invalid format)`, points: 75 });
+                    highRiskFloorRule = true;
                   } else {
                     riskScore += 10;
                     evidence.push({ reason: "Minor document anomaly (Unusual structure)", points: 10 });
@@ -395,9 +400,10 @@ export default function DashboardPage() {
             // Face Verification
             if (faceResult) {
               if (faceResult.match === false) {
-                riskScore += 50;
-                evidence.push({ reason: "Face mismatch (Live selfie does not match ID photo)", points: 50 });
+                riskScore += 75;
+                evidence.push({ reason: "Face mismatch (Live selfie does not match ID photo)", points: 75 });
                 faceMismatchRule = true;
+                highRiskFloorRule = true;
               } else if (faceResult.similarity_percent && faceResult.similarity_percent < 70) {
                 riskScore += 15;
                 evidence.push({ reason: "Face verification borderline (Match is uncertain)", points: 15 });
@@ -444,9 +450,9 @@ export default function DashboardPage() {
               evidence.push({ reason: `${sw} (Image was manipulated)`, points: 15 });
             }
 
-            // Face mismatch floor: minimum Medium Risk
-            if (faceMismatchRule && riskScore < 40) {
-              riskScore = 40;
+            // High Risk floor rule: If face mismatch OR critical unique ID checksum fails, enforce minimum score of 75 (HIGH RISK)
+            if (highRiskFloorRule && riskScore < 75) {
+              riskScore = 75;
             }
 
             riskScore = Math.min(riskScore, 100);
